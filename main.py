@@ -4,9 +4,10 @@ import numpy as np
 import cv2
 from matplotlib import pyplot as plt
 
-
-im1 = cv2.imread('images/monkey_distorted.jpg')          # Image that needs to be registered.
-im2 = cv2.imread('images/monkey.jpg')                   # trainImage
+pic1_path = "image_undistorted.png"
+pic2_path = "lidar_projection.png"
+im1 = cv2.imread('pic1_path')          # Image that needs to be registered.
+im2 = cv2.imread('pic2_path')                   # trainImage
 
 img1 = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
 img2 = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)

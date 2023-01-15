@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 from math import sqrt
+from tqdm.notebook import tqdm
+import matplotlib.pyplot as plt
 
 # ---------------------------------------------------------------------------- #
 #                                 Instructions                                 #
@@ -10,10 +12,12 @@ How to use:
 1. Update PARAMETERS section with the correct Image paths
 2. Run the script `python3 1.py`
 3. Click on the keypoints in the correct order in both images
+4. Idea: use SIFT features to suggest keypoints
+5. BRIEF is a fast descriptor, but it is not robust to rotation
 
 Rules:
-1. pic1 is image
-2. pic2 is Lidar / Radar
+1. pic1 is Lidar / Radar 
+2. pic2 is image
 3. For Lidar-Lidar/Radar-Lidar Calibration, replace pic1 correct projection images
 4. P1 = H @ P2 
 5. Frame transformation from pic2 to pic1, original_frame to target_frame
@@ -22,8 +26,10 @@ Rules:
 # ---------------------------------------------------------------------------- #
 #                                  PARAMETERS                                  #
 # ---------------------------------------------------------------------------- #
-pic1_path = "image_undistorted.png"
-pic2_path = "lidar_projection.png"
+# pic1_path = "image_undistorted.png"
+# pic2_path = "lidar_projection.png"
+pic1_path = "lidar_projection.png" 
+pic2_path = "image_undistorted.png"
 
 
 # ---------------------------------------------------------------------------- #
@@ -48,11 +54,11 @@ def pic1_clickback(event, x, y, flags, param):
     # ---------------------------------------------------------------------------- #
     #                                 LeftClick = 1                                #
     # ---------------------------------------------------------------------------- #
-    if event == cv2.EVENT_LBUTTONDOWN:
+    if event == cv2.EVENT_LBUTTONDBLCLK:
         # ---------------------------------------------------------------------------- #
         #                  Record the coordinate of the clicked point                  #
         # ---------------------------------------------------------------------------- #
-        points_1.append((x, y))
+        points_1.append([x, y])
         print("Target Frame Points: ", points_1)
         
         
@@ -92,11 +98,11 @@ def pic2_clickback(event, x, y, flags, param):
     # ---------------------------------------------------------------------------- #
     #                                 LeftClick = 1                                #
     # ---------------------------------------------------------------------------- #
-    if event == cv2.EVENT_LBUTTONDOWN:
+    if event == cv2.EVENT_LBUTTONDBLCLK:
         # ---------------------------------------------------------------------------- #
         #                  Record the coordinate of the clicked point                  #
         # ---------------------------------------------------------------------------- #
-        points_2.append((x, y))
+        points_2.append([x, y])
         print("Target Frame Points: ", points_2)
         
         
@@ -139,44 +145,58 @@ cv2.namedWindow("pic2_original_frame")
 cv2.setMouseCallback("pic1_target_frame", pic1_clickback) #, param)
 cv2.setMouseCallback("pic2_original_frame", pic2_clickback) # param = None
 
-
 while True:
-    # both windows are displaying the same img
-    cv2.imshow("pic1_target_frame", img1)
-    cv2.imshow("pic2_original_frame", img2)
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+    while True:
+        # both windows are displaying the same img
+        cv2.imshow("pic1_target_frame", img1)
+        cv2.imshow("pic2_original_frame", img2)
 
-cv2.destroyAllWindows()
+        # press q to exit
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+    try:
+        assert len(points_1) == len(points_2)
+        break
+    except:
+        print("Error! Number of points in each frame must be the same!")
+        continue
+
 
 # ---------------------------------------------------------------------------- #
 #                            Homeography Starts here                           #
 # ---------------------------------------------------------------------------- #
-orb = cv2.ORB_create(25)  #Registration works with at least 50 points
-kp1, des1 = orb.detectAndCompute(pic1, None)  #kp1 --> list of keypoints
-print(kp1)
-print(des1)
+#Now let us use these key points to register two images. 
+#Can be used for distortion correction or alignment
+#For this task we will use homography. 
+# https://docs.opencv.org/3.4.1/d9/dab/tutorial_homography.html
 
-# ---------------------------------------------------------------------------- #
-# ----- Brute-Force matcher takes the descriptor of one feature in first ----- #
-# ---- set and is matched with all other features in second set using some --- #
-# --------------------------- distance calculation. -------------------------- #
-# ---------------------------------------------------------------------------- #
+# Extract location of good matches.
+# For this we will use RANSAC.
+#RANSAC is abbreviation of RANdom SAmple Consensus, 
+#in summary it can be considered as outlier rejection method for keypoints.
+#http://eric-yuan.me/ransac/
+#RANSAC needs all key points indexed, first set indexed to queryIdx
+#Second set to #trainIdx. 
+points_1 = np.array(points_1).reshape((-1, 1, 2))
+points_2 = np.array(points_2).reshape((-1, 1, 2))
 
-# create Matcher object
-matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
 
-# Match descriptors.
-matches = matcher.match(des1, des2, None)  #Creates a list of all matches, just like keypoints
+#Now we have all good keypoints so we are ready for homography.   
+# Find homography
+#https://en.wikipedia.org/wiki/Homography_(computer_vision)
+# RANSAC is used to remove outliers
+h, mask = cv2.findHomography(points_1, points_2, cv2.RANSAC)
+ 
+# Use homography
+height, width, channels = pic2.shape
+im1Reg = cv2.warpPerspective(pic1, h, (width, height))  #Applies a perspective transformation to an image.
+cv2.imshow("warped", im1Reg)
 
-# Sort them in the order of their distance.
-matches = sorted(matches, key = lambda x:x.distance)
+print("Estimated homography : \n",  h)
 
-#Like we used cv2.drawKeypoints() to draw keypoints, 
-#cv2.drawMatches() helps us to draw the matches. 
-#https://docs.opencv.org/3.0-beta/modules/features2d/doc/drawing_function_of_keypoints_and_matches.html
-# Draw first 10 matches.
-img3 = cv2.drawMatches(im1,kp1, im2, kp2, matches[:10], None)
-
-cv2.imshow("Matches image", img3)
-cv2.waitKey(0)
+# plt.imshow(stitch_img(pic1, pic2, h))
+# cv2.imshow("pic1_target_frame", img1)
+im1Reg[0:pic2.shape[0], 0:pic2.shape[1]] = pic2*0.5 + im1Reg*0.5 #stitched image
+cv2.imshow("stiched", im1Reg)
+if cv2.waitKey(0) & 0xFF == ord('q'):
+    cv2.destroyAllWindows()
