@@ -9,4 +9,4 @@ To use this tool,
 6. You will see the produced matrix and 50/50 overlay of both images.
  
 Example as below:
-![alt text](https://github.com/Chrislai502/Homographic_Lidar_Camera_Calibration/edit/main/image.png?raw=true)
+![Alt text](https://github.com/Chrislai502/Homographic_Lidar_Camera_Calibration/edit/main/image.png?raw=true)
