@@ -103,7 +103,7 @@ def pic2_clickback(event, x, y, flags, param):
         #                  Record the coordinate of the clicked point                  #
         # ---------------------------------------------------------------------------- #
         points_2.append([x, y])
-        print("Target Frame Points: ", points_2)
+        print("Original Frame Points: ", points_2)
         
         
         # ---------------------------------------------------------------------------- #
